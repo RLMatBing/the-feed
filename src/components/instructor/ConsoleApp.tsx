@@ -689,7 +689,7 @@ function Debrief({ state }: { state: InstructorSnapshot }) {
       />
       <Concept
         title="Multitude"
-        body="The same communication infrastructure that produced Platform Value also let students form groups, broadcast, and write rules."
+        body="The same communication infrastructure that produced Platform Value also let students form groups and write rules."
       />
       <Concept
         title="Central paradox"

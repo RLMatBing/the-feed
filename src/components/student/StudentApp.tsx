@@ -2,7 +2,6 @@
 
 import {
   actionBoost,
-  actionBroadcast,
   actionCreateGroup,
   actionCreatePost,
   actionJoinGroup,
@@ -28,7 +27,6 @@ import { useLiveState } from "@/lib/use-live";
 import type { Post, ProposalEffect, StudentSnapshot } from "@/lib/types";
 import { PROPOSAL_EFFECTS, proposalEffectLabel } from "@/lib/types";
 import {
-  Broadcast,
   ChatCircle,
   Eye,
   FireSimple,
@@ -139,7 +137,7 @@ export function StudentApp({ initial }: { initial: StudentSnapshot }) {
                   Platform governance is open. Propose a change to the room.
                 </button>
               )}
-              <Feed state={state} apply={apply} late={late} />
+              <Feed state={state} apply={apply} />
             </>
           )}
           {tab === "groups" && <Groups state={state} apply={apply} />}
@@ -332,11 +330,9 @@ function RightRail({ state }: { state: StudentSnapshot }) {
 function Feed({
   state,
   apply,
-  late,
 }: {
   state: StudentSnapshot;
   apply: (result: ActionResult) => void;
-  late: boolean;
 }) {
   const [sort, setSort] = useState<FeedSort>("latest");
   const roots = useMemo(
@@ -350,7 +346,6 @@ function Feed({
       <Composer
         state={state}
         apply={apply}
-        showBroadcast={late}
       />
       {!state.session.flags.hideLeaderboard && (
         <div className="md:hidden">
@@ -452,14 +447,12 @@ function RankStrip({ state }: { state: StudentSnapshot }) {
 function Composer({
   state,
   apply,
-  showBroadcast,
   parentId,
   groupId,
   onDone,
 }: {
   state: StudentSnapshot;
   apply: (result: ActionResult) => void;
-  showBroadcast?: boolean;
   parentId?: string;
   groupId?: string | null;
   onDone?: () => void;
@@ -546,7 +539,7 @@ function Composer({
     setPickerOpen(false);
   }
 
-  function submit(kind: "post" | "broadcast") {
+  function submit() {
     if (!you) return;
     start(async () => {
       const data = new FormData();
@@ -557,10 +550,7 @@ function Composer({
         if (item.file) data.append("images", item.file);
         if (item.giphyId) data.append("giphyIds", item.giphyId);
       }
-      const result =
-        kind === "broadcast"
-          ? await actionBroadcast(body)
-          : await actionCreatePost(data);
+      const result = await actionCreatePost(data);
       apply(result);
       if (!result.error) {
         clearDraft();
@@ -668,20 +658,10 @@ function Composer({
           </button>
         </div>
         <div className="flex gap-2">
-          {showBroadcast && !parentId && (
-            <button
-              type="button"
-              disabled={pending || paused || !body.trim()}
-              onClick={() => submit("broadcast")}
-              className="inline-flex items-center gap-1 rounded-full border border-white/15 px-3 py-1.5 text-xs font-semibold active:scale-[0.98]"
-            >
-              <Broadcast size={14} /> Broadcast
-            </button>
-          )}
           <button
             type="button"
             disabled={pending || paused || !canPost || !enoughEnergy}
-            onClick={() => submit("post")}
+            onClick={() => submit()}
             className="rounded-full bg-feed-accent px-4 py-1.5 text-xs font-semibold text-white active:scale-[0.98] disabled:opacity-40"
           >
             {parentId ? "Reply" : "Post"}

@@ -383,62 +383,6 @@ export async function pinPost(sessionId: string, participantId: string, postId: 
   });
 }
 
-export async function studentBroadcast(
-  sessionId: string,
-  participantId: string,
-  body: string,
-): Promise<void> {
-  await mutate(sessionId, (db) => {
-    const session = requireSession(db, sessionId);
-    assertWritable(session);
-    if (session.currentRound < 4) throw new Error("Broadcasts are not available yet.");
-    const person = db.participants[participantId];
-    if (!person || person.kickedAt) throw new Error("You are not in this session.");
-    if (person.broadcastsUsedThisRound >= 1) {
-      throw new Error("You already broadcast this round.");
-    }
-    person.broadcastsUsedThisRound += 1;
-    const text = body.trim().slice(0, 180);
-    if (!text) throw new Error("Write a message first.");
-    session.announcement = `@${person.username}: ${text}`;
-    const people = Object.values(db.participants).filter(
-      (p) => p.sessionId === session.id,
-    );
-    const post: Post = {
-      id: uid(),
-      sessionId,
-      authorId: person.id,
-      parentId: null,
-      groupId: null,
-      body: text,
-      imageUrl: null,
-      media: [],
-      likedBy: [],
-      viewsDisplay: 1,
-      visibilityScore: 0,
-      influenceEarned: 0,
-      tags: classifyBody(text),
-      boosted: true,
-      buried: false,
-      trending: true,
-      pinnedUntil: new Date(Date.now() + 60_000).toISOString(),
-      mentionedIds: parseMentions(text, people),
-      isBroadcast: true,
-      createdAt: nowIso(),
-    };
-    db.posts[post.id] = post;
-    db.announcements[post.id] = {
-      id: post.id,
-      sessionId,
-      body: session.announcement,
-      kind: "broadcast",
-      createdAt: nowIso(),
-    };
-    addEvent(db, sessionId, "broadcast", { by: person.username });
-    recomputeSession(db, session);
-  });
-}
-
 export async function createGroup(
   sessionId: string,
   participantId: string,

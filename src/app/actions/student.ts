@@ -21,7 +21,6 @@ import {
   getSessionByCode,
   joinGroup,
   joinSession,
-  studentBroadcast,
   toggleLike,
   boostPost,
   pinPost,
@@ -150,16 +149,6 @@ export async function actionPin(postId: string): Promise<StudentResult> {
     return { state: await snapshotOf(you.sessionId, you.token) };
   } catch (error) {
     return { error: error instanceof Error ? error.message : "Could not pin." };
-  }
-}
-
-export async function actionBroadcast(body: string): Promise<StudentResult> {
-  try {
-    const you = await actor();
-    await studentBroadcast(you.sessionId, you.id, body);
-    return { state: await snapshotOf(you.sessionId, you.token) };
-  } catch (error) {
-    return { error: error instanceof Error ? error.message : "Could not broadcast." };
   }
 }
 
