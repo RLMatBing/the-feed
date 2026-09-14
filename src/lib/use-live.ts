@@ -43,7 +43,7 @@ export function useLiveState<T>(
     void pull();
     const poll = setInterval(() => {
       void pull();
-    }, 800);
+    }, 2500);
 
     return () => {
       cancelled = true;

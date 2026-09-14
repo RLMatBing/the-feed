@@ -37,6 +37,9 @@ function firstUrl(image: GiphyImage | undefined): string | null {
 function pickPreview(item: GiphyItem): string | null {
   const images = item.images ?? {};
   return (
+    firstUrl(images.fixed_height_small_still) ||
+    firstUrl(images.downsized_still) ||
+    firstUrl(images.original_still) ||
     firstUrl(images.fixed_height_small) ||
     firstUrl(images.fixed_width_small) ||
     firstUrl(images.fixed_height) ||
@@ -92,7 +95,7 @@ export async function searchGiphy(query: string): Promise<GiphyHit[]> {
   const q = query.trim().slice(0, 80);
   const payload = (await giphyGet(
     q ? "gifs/search" : "gifs/trending",
-    q ? { q, limit: "24", lang: "en" } : { limit: "24" },
+    q ? { q, limit: "12", lang: "en" } : { limit: "12" },
   )) as { data?: GiphyItem[] };
   return mapHits(payload.data);
 }

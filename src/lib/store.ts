@@ -35,13 +35,28 @@ const DATA_FILE = join(DATA_DIR, "db.json");
 
 let cache: Database | null = null;
 let remoteVersion = 0;
+let cacheAt = 0;
+const READ_TTL_MS = 400;
 
-async function load(): Promise<Database> {
-  if (usesRemoteStore()) {
+async function loadRemote(force: boolean): Promise<Database> {
+  if (!force && cache && Date.now() - cacheAt < READ_TTL_MS) {
+    return cache;
+  }
+  try {
     const remote = await remoteLoad();
     cache = remote.db;
     remoteVersion = remote.version;
+    cacheAt = Date.now();
     return cache;
+  } catch (error) {
+    if (cache) return cache;
+    throw error;
+  }
+}
+
+async function load(): Promise<Database> {
+  if (usesRemoteStore()) {
+    return loadRemote(false);
   }
   if (cache) return cache;
   if (!existsSync(DATA_FILE)) {
@@ -69,10 +84,11 @@ async function persist(): Promise<boolean> {
 
 async function mutate<T>(sessionId: string | null, fn: (db: Database) => T): Promise<T> {
   for (let attempt = 0; attempt < 8; attempt += 1) {
-    const db = await load();
+    const db = usesRemoteStore() ? await loadRemote(true) : await load();
     const result = fn(db);
     const saved = await persist();
     if (saved) {
+      cacheAt = Date.now();
       if (sessionId) publish(sessionId);
       return result;
     }
