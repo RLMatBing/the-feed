@@ -5,12 +5,14 @@ import {
   setParticipantCookies,
 } from "@/lib/auth";
 import { storePostImage } from "@/lib/media";
+import { composeEnergyCost, isGifUpload } from "@/lib/media-cost";
 import { studentSnapshot } from "@/lib/snapshot";
 import {
   createGroup,
   createPost,
   createProposal,
   getParticipantByToken,
+  getSession,
   getSessionByCode,
   joinGroup,
   joinSession,
@@ -57,15 +59,33 @@ export async function actionCreatePost(formData: FormData): Promise<StudentResul
   try {
     const you = await actor();
     const image = formData.get("image");
-    const imageUrl =
-      image instanceof File && image.size > 0
-        ? await storePostImage(image)
-        : null;
+    const file =
+      image instanceof File && image.size > 0 ? image : null;
+    const media = file
+      ? { size: file.size, type: file.type, name: file.name }
+      : null;
+    const session = await getSession(you.sessionId);
+    if (!session) throw new Error("Session not found.");
+    const cost = composeEnergyCost(
+      session.costs.post,
+      session.costs.reply,
+      Boolean(optional(formData.get("parentId"))),
+      media,
+    );
+    if (you.energy < cost) {
+      throw new Error(
+        media
+          ? `Not enough Energy. That ${isGifUpload(media) ? "GIF" : "photo"} costs ${cost} Energy.`
+          : "Not enough Energy.",
+      );
+    }
+    const imageUrl = file ? await storePostImage(file) : null;
     await createPost({
       sessionId: you.sessionId,
       authorId: you.id,
       body: String(formData.get("body") ?? ""),
       imageUrl,
+      media,
       parentId: optional(formData.get("parentId")),
       groupId: optional(formData.get("groupId")),
     });

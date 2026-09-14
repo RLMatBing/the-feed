@@ -1,9 +1,9 @@
 import { mkdir, writeFile } from "fs/promises";
 import path from "path";
 import { uid } from "./ids";
+import { MAX_UPLOAD_BYTES } from "./media-cost";
 import { supabaseClient, usesRemoteStore } from "./persist";
 
-const MAX_BYTES = 2 * 1024 * 1024;
 const EXTENSIONS: Record<string, string> = {
   "image/jpeg": "jpg",
   "image/jpg": "jpg",
@@ -16,7 +16,7 @@ export async function storePostImage(file: File): Promise<string> {
   if (file.size <= 0) {
     throw new Error("That image is empty.");
   }
-  if (file.size > MAX_BYTES) {
+  if (file.size > MAX_UPLOAD_BYTES) {
     throw new Error("Images must be under 2 MB.");
   }
   const ext = EXTENSIONS[file.type];

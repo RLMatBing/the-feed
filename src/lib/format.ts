@@ -6,6 +6,12 @@ export function formatDollars(value: number): string {
   }).format(value);
 }
 
+export function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 export function compact(value: number): string {
   if (value < 1000) return String(value);
   if (value < 10_000) return `${(value / 1000).toFixed(1)}k`;

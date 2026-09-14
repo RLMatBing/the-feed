@@ -12,7 +12,8 @@ import {
   actionVote,
 } from "@/app/actions/student";
 import { PostImage } from "@/components/PostImage";
-import { compact, formatDollars, timeAgo } from "@/lib/format";
+import { compact, formatBytes, formatDollars, timeAgo } from "@/lib/format";
+import { composeEnergyCost, isGifUpload } from "@/lib/media-cost";
 import { useLiveState } from "@/lib/use-live";
 import type { Post, ProposalEffect, StudentSnapshot } from "@/lib/types";
 import { PROPOSAL_EFFECTS } from "@/lib/types";
@@ -410,6 +411,20 @@ function Composer({
   const you = state.you;
   const paused = state.session.status === "paused";
   const canPost = Boolean(body.trim() || image);
+  const energyCost = composeEnergyCost(
+    state.session.costs.post,
+    state.session.costs.reply,
+    Boolean(parentId),
+    image,
+  );
+  const enoughEnergy = Boolean(you && you.energy >= energyCost);
+  const kind = image
+    ? isGifUpload(image)
+      ? "GIF"
+      : "Photo"
+    : parentId
+      ? "Reply"
+      : "Post";
 
   useEffect(() => {
     return () => {
@@ -494,7 +509,7 @@ function Composer({
         <div className="flex items-center gap-3">
           <label className="inline-flex cursor-pointer items-center gap-1 text-[11px] text-feed-muted hover:text-feed-text">
             <ImageSquare size={16} />
-            Photo
+            Photo / GIF
             <input
               type="file"
               accept="image/jpeg,image/png,image/gif,image/webp"
@@ -504,9 +519,14 @@ function Composer({
             />
           </label>
           <p className="text-[11px] text-feed-muted">
-            {parentId
+            {energyCost === 0
               ? "Replies are free"
-              : `Post costs ${state.session.costs.post} Energy`}
+              : image
+                ? `${kind} · ${formatBytes(image.size)} costs ${energyCost} Energy`
+                : `${kind} costs ${energyCost} Energy`}
+            {you && energyCost > 0 && !enoughEnergy
+              ? ` · you have ${you.energy}`
+              : ""}
           </p>
         </div>
         <div className="flex gap-2">
@@ -522,7 +542,7 @@ function Composer({
           )}
           <button
             type="button"
-            disabled={pending || paused || !canPost}
+            disabled={pending || paused || !canPost || !enoughEnergy}
             onClick={() => submit("post")}
             className="rounded-full bg-feed-accent px-4 py-1.5 text-xs font-semibold text-white active:scale-[0.98] disabled:opacity-40"
           >

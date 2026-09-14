@@ -13,6 +13,7 @@ import {
 } from "./engine";
 import { remoteLoad, remoteSave, usesRemoteStore } from "./persist";
 import { nowIso, roomCode, uid } from "./ids";
+import { composeEnergyCost, type UploadMeta } from "./media-cost";
 import type {
   AlgorithmWeights,
   Classification,
@@ -216,6 +217,7 @@ export async function createPost(input: {
   authorId: string;
   body: string;
   imageUrl?: string | null;
+  media?: UploadMeta | null;
   parentId?: string | null;
   groupId?: string | null;
   isBroadcast?: boolean;
@@ -233,8 +235,19 @@ export async function createPost(input: {
     if (!body && !imageUrl) throw new Error("Write something first.");
 
     const isReply = Boolean(input.parentId);
-    const cost = isReply ? session.costs.reply : session.costs.post;
-    if (author.energy < cost) throw new Error("Not enough Energy.");
+    const cost = composeEnergyCost(
+      session.costs.post,
+      session.costs.reply,
+      isReply,
+      input.media,
+    );
+    if (author.energy < cost) {
+      throw new Error(
+        cost > (isReply ? session.costs.reply : session.costs.post)
+          ? `Not enough Energy. That upload costs ${cost} Energy.`
+          : "Not enough Energy.",
+      );
+    }
 
     if (input.parentId) {
       const parent = db.posts[input.parentId];
