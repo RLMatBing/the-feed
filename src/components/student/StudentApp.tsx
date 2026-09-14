@@ -12,6 +12,7 @@ import {
   actionVote,
 } from "@/app/actions/student";
 import { PostImage } from "@/components/PostImage";
+import { GifPicker } from "@/components/student/GifPicker";
 import { compact, formatBytes, formatDollars, timeAgo } from "@/lib/format";
 import { composeEnergyCost, isGifUpload } from "@/lib/media-cost";
 import { useLiveState } from "@/lib/use-live";
@@ -22,6 +23,7 @@ import {
   ChatCircle,
   Eye,
   FireSimple,
+  Gif,
   Heart,
   House,
   ImageSquare,
@@ -407,24 +409,36 @@ function Composer({
   const [body, setBody] = useState("");
   const [image, setImage] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
+  const [giphy, setGiphy] = useState<{
+    id: string;
+    preview: string;
+    size: number;
+  } | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
   const [pending, start] = useTransition();
   const you = state.you;
   const paused = state.session.status === "paused";
-  const canPost = Boolean(body.trim() || image);
+  const media = image
+    ? { size: image.size, type: image.type, name: image.name }
+    : giphy
+      ? { size: giphy.size, type: "image/gif", name: "giphy.gif" }
+      : null;
+  const canPost = Boolean(body.trim() || media);
   const energyCost = composeEnergyCost(
     state.session.costs.post,
     state.session.costs.reply,
     Boolean(parentId),
-    image,
+    media,
   );
   const enoughEnergy = Boolean(you && you.energy >= energyCost);
-  const kind = image
-    ? isGifUpload(image)
+  const kind = media
+    ? isGifUpload(media)
       ? "GIF"
       : "Photo"
     : parentId
       ? "Reply"
       : "Post";
+  const previewSrc = giphy?.preview ?? preview;
 
   useEffect(() => {
     return () => {
@@ -432,8 +446,17 @@ function Composer({
     };
   }, [preview]);
 
+  function clearMedia() {
+    if (preview) URL.revokeObjectURL(preview);
+    setImage(null);
+    setPreview(null);
+    setGiphy(null);
+  }
+
   function chooseImage(file: File | undefined) {
     if (preview) URL.revokeObjectURL(preview);
+    setGiphy(null);
+    setPickerOpen(false);
     if (!file) {
       setImage(null);
       setPreview(null);
@@ -445,7 +468,8 @@ function Composer({
 
   function clearDraft() {
     setBody("");
-    chooseImage(undefined);
+    clearMedia();
+    setPickerOpen(false);
   }
 
   function submit(kind: "post" | "broadcast") {
@@ -456,6 +480,7 @@ function Composer({
       if (parentId) data.set("parentId", parentId);
       if (groupId) data.set("groupId", groupId);
       if (image) data.set("image", image);
+      if (giphy) data.set("giphyId", giphy.id);
       const result =
         kind === "broadcast"
           ? await actionBroadcast(body)
@@ -487,13 +512,13 @@ function Composer({
         }
         className="w-full resize-none bg-transparent text-[15px] outline-none placeholder:text-feed-muted/70"
       />
-      {preview && (
+      {previewSrc && (
         <div className="relative mt-2 overflow-hidden rounded-2xl">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={preview} alt="" className="max-h-64 w-full object-cover" />
+          <img src={previewSrc} alt="" className="max-h-64 w-full object-cover" />
           <button
             type="button"
-            onClick={() => chooseImage(undefined)}
+            onClick={() => clearMedia()}
             className="absolute right-2 top-2 rounded-full bg-black/70 p-1 text-white"
             aria-label="Remove image"
           >
@@ -501,15 +526,30 @@ function Composer({
           </button>
         </div>
       )}
+      {pickerOpen && state.gifsEnabled && (
+        <GifPicker
+          basePost={state.session.costs.post}
+          baseReply={state.session.costs.reply}
+          isReply={Boolean(parentId)}
+          onPick={(gif) => {
+            if (preview) URL.revokeObjectURL(preview);
+            setImage(null);
+            setPreview(null);
+            setGiphy({ id: gif.id, preview: gif.preview, size: gif.size });
+            setPickerOpen(false);
+          }}
+          onClose={() => setPickerOpen(false)}
+        />
+      )}
       <p className="mt-2 text-[11px] leading-snug text-feed-muted">
-        Images must be classroom-appropriate. Don’t upload anything you
+        Images and GIFs must be classroom-appropriate. Don’t post anything you
         wouldn’t show on a projector.
       </p>
       <div className="mt-2 flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <label className="inline-flex cursor-pointer items-center gap-1 text-[11px] text-feed-muted hover:text-feed-text">
             <ImageSquare size={16} />
-            Photo / GIF
+            Photo
             <input
               type="file"
               accept="image/jpeg,image/png,image/gif,image/webp"
@@ -518,11 +558,22 @@ function Composer({
               onChange={(e) => chooseImage(e.target.files?.[0])}
             />
           </label>
+          {state.gifsEnabled && (
+            <button
+              type="button"
+              disabled={paused}
+              onClick={() => setPickerOpen((open) => !open)}
+              className="inline-flex items-center gap-1 text-[11px] text-feed-muted hover:text-feed-text"
+            >
+              <Gif size={16} />
+              GIFs
+            </button>
+          )}
           <p className="text-[11px] text-feed-muted">
             {energyCost === 0
               ? "Replies are free"
-              : image
-                ? `${kind} · ${formatBytes(image.size)} costs ${energyCost} Energy`
+              : media
+                ? `${kind} · ${formatBytes(media.size)} costs ${energyCost} Energy`
                 : `${kind} costs ${energyCost} Energy`}
             {you && energyCost > 0 && !enoughEnergy
               ? ` · you have ${you.energy}`

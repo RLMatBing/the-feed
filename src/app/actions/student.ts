@@ -4,6 +4,7 @@ import {
   readParticipantCookies,
   setParticipantCookies,
 } from "@/lib/auth";
+import { resolveGiphy } from "@/lib/giphy";
 import { storePostImage } from "@/lib/media";
 import { composeEnergyCost, isGifUpload } from "@/lib/media-cost";
 import { studentSnapshot } from "@/lib/snapshot";
@@ -61,9 +62,18 @@ export async function actionCreatePost(formData: FormData): Promise<StudentResul
     const image = formData.get("image");
     const file =
       image instanceof File && image.size > 0 ? image : null;
-    const media = file
+    const giphyId = optional(formData.get("giphyId"));
+    let imageUrl: string | null = null;
+    let media: { size: number; type: string; name?: string } | null = file
       ? { size: file.size, type: file.type, name: file.name }
       : null;
+
+    if (giphyId && !file) {
+      const gif = await resolveGiphy(giphyId);
+      imageUrl = gif.url;
+      media = { size: gif.size, type: "image/gif", name: "giphy.gif" };
+    }
+
     const session = await getSession(you.sessionId);
     if (!session) throw new Error("Session not found.");
     const cost = composeEnergyCost(
@@ -79,7 +89,7 @@ export async function actionCreatePost(formData: FormData): Promise<StudentResul
           : "Not enough Energy.",
       );
     }
-    const imageUrl = file ? await storePostImage(file) : null;
+    if (file) imageUrl = await storePostImage(file);
     await createPost({
       sessionId: you.sessionId,
       authorId: you.id,

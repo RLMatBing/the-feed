@@ -172,6 +172,7 @@ export type StudentSnapshot = {
   announcements: Announcement[];
   stats: ProductionStats;
   trendingHashtag: string | null;
+  gifsEnabled: boolean;
 };
 
 export type InstructorSnapshot = {

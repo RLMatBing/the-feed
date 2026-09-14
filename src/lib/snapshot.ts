@@ -87,6 +87,7 @@ export async function studentSnapshot(
       .slice(0, 12),
     stats,
     trendingHashtag,
+    gifsEnabled: Boolean(process.env.GIPHY_API_KEY?.trim()),
   };
 }
 
