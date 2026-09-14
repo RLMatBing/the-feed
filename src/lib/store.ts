@@ -3,6 +3,7 @@ import "server-only";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
 import { join } from "path";
 import { publish } from "./bus";
+import { classifyBody } from "./classify";
 import {
   collectStats,
   DEFAULT_WEIGHTS,
@@ -138,7 +139,7 @@ export async function createSession(): Promise<Session> {
       code,
       status: "live",
       currentRound: 1,
-      energyPerRound: 5,
+      energyPerRound: 12,
       costs: { post: 1, reply: 0, like: 0 },
       influenceThresholds: { boost: 10, pin: 20 },
       weights: structuredClone(DEFAULT_WEIGHTS),
@@ -260,7 +261,7 @@ export async function createPost(input: {
       viewsDisplay: 1,
       visibilityScore: 0,
       influenceEarned: 0,
-      tags: ["neutral"],
+      tags: classifyBody(body),
       boosted: false,
       buried: false,
       trending: false,
@@ -371,7 +372,7 @@ export async function studentBroadcast(
       viewsDisplay: 1,
       visibilityScore: 0,
       influenceEarned: 0,
-      tags: ["neutral"],
+      tags: classifyBody(text),
       boosted: true,
       buried: false,
       trending: true,
@@ -628,7 +629,7 @@ export async function setWeights(
 
 export async function setEnergyPerRound(sessionId: string, value: number): Promise<void> {
   await instructorUpdate(sessionId, (_db, session) => {
-    session.energyPerRound = Math.max(1, Math.min(12, Math.round(value)));
+    session.energyPerRound = Math.max(1, Math.min(24, Math.round(value)));
   });
 }
 
@@ -711,7 +712,7 @@ function applyEffect(db: Database, session: Session, effect: ProposalEffect): vo
   if (effect === "remove_leaderboard") session.flags.hideLeaderboard = true;
   if (effect === "hide_influence") session.flags.hideInfluence = true;
   if (effect === "double_energy") {
-    session.energyPerRound = Math.min(12, session.energyPerRound * 2);
+    session.energyPerRound = Math.min(24, session.energyPerRound * 2);
     refillEnergy(db, session);
   }
   if (effect === "equalize_energy") refillEnergy(db, session);

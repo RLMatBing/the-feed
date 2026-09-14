@@ -246,6 +246,9 @@ function Queue({
 
   return (
     <div className="divide-y divide-ops-line">
+      <p className="px-4 py-3 font-mono text-[11px] text-ops-muted">
+        New posts are tagged automatically. Change a tag if the guess is wrong.
+      </p>
       {roots.map((post) => (
         <article key={post.id} className="px-4 py-3">
           <div className="flex items-baseline justify-between gap-3 font-mono text-[11px] text-ops-muted">

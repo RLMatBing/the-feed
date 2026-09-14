@@ -37,6 +37,6 @@ Student password: none. Room code plus a temporary username.
 
 Instructor password: `seminar`.
 
-Post cost: 1 Energy. Likes and replies are free. Energy refills each round.
+Post cost: 1 Energy. Likes and replies are free. Energy starts at 12 each round.
 
 Local `npm run dev` can store sessions in `.data/db.json`. The hosted Vercel app uses a shared Supabase table so all 12 students see the same room.
