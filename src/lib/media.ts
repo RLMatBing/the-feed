@@ -41,6 +41,10 @@ export async function storePostImage(file: File): Promise<string> {
     return data.publicUrl;
   }
 
+  if (process.env.VERCEL) {
+    throw new Error("Image storage is not configured.");
+  }
+
   const dir = path.join(process.cwd(), ".data", "images");
   await mkdir(dir, { recursive: true });
   await writeFile(path.join(dir, name), bytes);
