@@ -13,6 +13,7 @@ import {
 } from "@/app/actions/student";
 import { PostImage } from "@/components/PostImage";
 import { GifPicker } from "@/components/student/GifPicker";
+import { FEED_SORTS, sortFeed, type FeedSort } from "@/lib/feed-sort";
 import { compact, formatDollars, timeAgo } from "@/lib/format";
 import {
   energyBreakdown,
@@ -337,9 +338,10 @@ function Feed({
   apply: (result: ActionResult) => void;
   late: boolean;
 }) {
+  const [sort, setSort] = useState<FeedSort>("latest");
   const roots = useMemo(
-    () => state.posts.filter((p) => !p.parentId),
-    [state.posts],
+    () => sortFeed(state.posts, sort).filter((p) => !p.parentId),
+    [state.posts, sort],
   );
   const trending = roots.filter((p) => p.trending).slice(0, 3);
 
@@ -370,6 +372,7 @@ function Feed({
           ))}
         </div>
       )}
+      <FeedSortBar value={sort} onChange={setSort} />
       <div className="divide-y divide-white/8">
         {roots.length === 0 ? (
           <p className="px-4 py-16 text-center text-sm text-feed-muted">
@@ -386,6 +389,42 @@ function Feed({
           ))
         )}
       </div>
+    </div>
+  );
+}
+
+function FeedSortBar({
+  value,
+  onChange,
+}: {
+  value: FeedSort;
+  onChange: (next: FeedSort) => void;
+}) {
+  return (
+    <div
+      role="tablist"
+      aria-label="Sort the feed"
+      className="flex border-b border-white/10"
+    >
+      {FEED_SORTS.map((item) => {
+        const selected = value === item.id;
+        return (
+          <button
+            key={item.id}
+            type="button"
+            role="tab"
+            aria-selected={selected}
+            onClick={() => onChange(item.id)}
+            className={`flex-1 py-2.5 text-[13px] font-semibold active:scale-[0.99] ${
+              selected
+                ? "border-b-2 border-feed-accent text-white"
+                : "text-feed-muted"
+            }`}
+          >
+            {item.label}
+          </button>
+        );
+      })}
     </div>
   );
 }

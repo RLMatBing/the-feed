@@ -1,4 +1,5 @@
 import { collectStats } from "./engine";
+import { sortFeed } from "./feed-sort";
 import { getDb } from "./store";
 import type {
   Database,
@@ -95,10 +96,9 @@ export async function studentSnapshot(
       rank: p.rank,
       kickedAt: p.kickedAt,
     })),
-    posts: sortFeed(sessionPosts(db, sessionId)).map((post) => ({
+    posts: sortFeed(sessionPosts(db, sessionId), "latest").map((post) => ({
       ...post,
       tags: [],
-      visibilityScore: 0,
     })),
     groups: Object.values(db.groups).filter((g) => g.sessionId === sessionId),
     proposals: Object.values(db.proposals)
@@ -146,17 +146,4 @@ export async function instructorSnapshot(
         (p.tags.length === 0 || (p.tags.length === 1 && p.tags[0] === "neutral")),
     ).length,
   };
-}
-
-export function sortFeed(posts: Post[]): Post[] {
-  const now = Date.now();
-  return [...posts].sort((a, b) => {
-    const aPin = a.pinnedUntil && new Date(a.pinnedUntil).getTime() > now ? 1 : 0;
-    const bPin = b.pinnedUntil && new Date(b.pinnedUntil).getTime() > now ? 1 : 0;
-    if (aPin !== bPin) return bPin - aPin;
-    if (a.visibilityScore !== b.visibilityScore) {
-      return b.visibilityScore - a.visibilityScore;
-    }
-    return b.createdAt.localeCompare(a.createdAt);
-  });
 }
