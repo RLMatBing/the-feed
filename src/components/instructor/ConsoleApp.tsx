@@ -44,6 +44,29 @@ export function ConsoleApp({ initial }: { initial: InstructorSnapshot }) {
   return (
     <div className="min-h-[100dvh] bg-ops-bg text-ops-text">
       <header className="sticky top-0 z-20 border-b border-ops-line bg-ops-bg">
+        <div className="flex gap-2 border-b border-ops-line px-4 py-2">
+          <button
+            type="button"
+            onClick={() => router.push("/console")}
+            className="border border-ops-line px-3 py-1.5 font-mono text-[11px] uppercase tracking-wide hover:bg-white hover:text-black"
+          >
+            Leave room
+          </button>
+          <button
+            type="button"
+            disabled={roomPending}
+            onClick={() =>
+              startRoom(async () => {
+                const result = await actionCreateSession();
+                if (!result.ok) setError(result.error);
+                else router.push(`/console/${result.id}`);
+              })
+            }
+            className="bg-white px-3 py-1.5 font-mono text-[11px] uppercase tracking-wide text-black active:scale-[0.98] disabled:opacity-50"
+          >
+            New room
+          </button>
+        </div>
         <div className="flex flex-wrap items-center gap-3 px-4 py-3">
           <div>
             <p className="font-mono text-[10px] uppercase tracking-wide text-white">
@@ -54,30 +77,8 @@ export function ConsoleApp({ initial }: { initial: InstructorSnapshot }) {
               {state.session.status}
             </p>
           </div>
-          <div className="ml-auto flex flex-wrap items-center gap-2">
-            <p className="font-mono text-sm text-white">
-              {formatDollars(state.session.platformValue)}
-            </p>
-            <a
-              href="/console"
-              className="border border-ops-line px-2.5 py-1 font-mono text-[11px] uppercase tracking-wide hover:bg-white hover:text-black"
-            >
-              All rooms
-            </a>
-            <button
-              type="button"
-              disabled={roomPending}
-              onClick={() =>
-                startRoom(async () => {
-                  const result = await actionCreateSession();
-                  if (!result.ok) setError(result.error);
-                  else router.push(`/console/${result.id}`);
-                })
-              }
-              className="bg-white px-2.5 py-1 font-mono text-[11px] uppercase tracking-wide text-black active:scale-[0.98] disabled:opacity-50"
-            >
-              New room
-            </button>
+          <div className="ml-auto font-mono text-sm text-white">
+            {formatDollars(state.session.platformValue)}
           </div>
         </div>
         <Controls sessionId={state.session.id} status={state.session.status} onError={setError} />
