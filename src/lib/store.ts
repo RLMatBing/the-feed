@@ -200,12 +200,18 @@ export async function joinSession(code: string, username: string): Promise<{
       throw new Error("Usernames can only use letters, numbers, and underscores.");
     }
 
-    const taken = Object.values(db.participants).some(
+    const existing = Object.values(db.participants).find(
       (p) =>
         p.sessionId === session.id &&
         p.username.toLowerCase() === clean.toLowerCase(),
     );
-    if (taken) throw new Error("That username is already taken.");
+    if (existing) {
+      if (existing.kickedAt) {
+        throw new Error("You were removed from this room.");
+      }
+      existing.token = uid() + uid();
+      return { session, participant: existing };
+    }
 
     const participant: Participant = {
       id: uid(),
