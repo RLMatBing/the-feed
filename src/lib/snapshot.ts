@@ -11,8 +11,31 @@ import type {
 function sessionPosts(db: Database, sessionId: string): Post[] {
   return Object.values(db.posts)
     .filter((p) => p.sessionId === sessionId)
-    .map((p) => ({ ...p, imageUrl: p.imageUrl ?? null }))
+    .map(normalizePost)
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+function normalizePost(post: Post): Post {
+  const media =
+    Array.isArray(post.media) && post.media.length > 0
+      ? post.media
+      : post.imageUrl
+        ? [
+            {
+              url: post.imageUrl,
+              kind:
+                post.imageUrl.includes("giphy.com") ||
+                post.imageUrl.toLowerCase().includes(".gif")
+                  ? ("gif" as const)
+                  : ("photo" as const),
+            },
+          ]
+        : [];
+  return {
+    ...post,
+    media,
+    imageUrl: media[0]?.url ?? post.imageUrl ?? null,
+  };
 }
 
 export async function studentSnapshot(

@@ -6,7 +6,11 @@ import {
 } from "@/lib/auth";
 import { resolveGiphy } from "@/lib/giphy";
 import { storePostImage } from "@/lib/media";
-import { composeEnergyCost, isGifUpload } from "@/lib/media-cost";
+import {
+  kindFromFile,
+  MAX_ATTACHMENTS,
+  postEnergyCost,
+} from "@/lib/media-cost";
 import { studentSnapshot } from "@/lib/snapshot";
 import {
   createGroup,
@@ -23,7 +27,7 @@ import {
   pinPost,
   voteProposal,
 } from "@/lib/store";
-import type { ProposalEffect, StudentSnapshot, Vote } from "@/lib/types";
+import type { PostMedia, ProposalEffect, StudentSnapshot, Vote } from "@/lib/types";
 
 type StudentResult = { error?: string; state?: StudentSnapshot };
 
@@ -59,42 +63,56 @@ export async function actionJoin(
 export async function actionCreatePost(formData: FormData): Promise<StudentResult> {
   try {
     const you = await actor();
-    const image = formData.get("image");
-    const file =
-      image instanceof File && image.size > 0 ? image : null;
-    const giphyId = optional(formData.get("giphyId"));
-    let imageUrl: string | null = null;
-    let media: { size: number; type: string; name?: string } | null = file
-      ? { size: file.size, type: file.type, name: file.name }
-      : null;
+    const body = String(formData.get("body") ?? "");
+    const files = formData
+      .getAll("images")
+      .filter((value): value is File => value instanceof File && value.size > 0);
+    const giphyIds = formData
+      .getAll("giphyIds")
+      .map((value) => String(value).trim())
+      .filter(Boolean);
 
-    if (giphyId && !file) {
-      const gif = await resolveGiphy(giphyId);
-      imageUrl = gif.url;
-      media = { size: gif.size, type: "image/gif", name: "giphy.gif" };
+    if (files.length + giphyIds.length > MAX_ATTACHMENTS) {
+      throw new Error(`You can attach up to ${MAX_ATTACHMENTS} images.`);
     }
 
+    const planned: PostMedia[] = [
+      ...files.map((file) => ({
+        url: "",
+        kind: kindFromFile(file),
+      })),
+      ...giphyIds.map(() => ({ url: "", kind: "gif" as const })),
+    ];
     const session = await getSession(you.sessionId);
     if (!session) throw new Error("Session not found.");
-    const cost = composeEnergyCost(
-      session.costs.post,
-      session.costs.reply,
-      Boolean(optional(formData.get("parentId"))),
-      media,
-    );
+    const cost = postEnergyCost({
+      hasText: Boolean(body.trim()),
+      photos: planned.filter((item) => item.kind === "photo").length,
+      gifs: planned.filter((item) => item.kind === "gif").length,
+      isReply: Boolean(optional(formData.get("parentId"))),
+    });
     if (you.energy < cost) {
-      throw new Error(
-        media
-          ? `Not enough Energy. That ${isGifUpload(media) ? "GIF" : "photo"} costs ${cost} Energy.`
-          : "Not enough Energy.",
-      );
+      throw new Error(`Not enough Energy. That post costs ${cost} Energy.`);
     }
-    if (file) imageUrl = await storePostImage(file);
+
+    const media: PostMedia[] = [];
+    for (const file of files) {
+      media.push({
+        url: await storePostImage(file),
+        kind: kindFromFile(file),
+      });
+    }
+    for (const id of giphyIds) {
+      media.push({
+        url: await resolveGiphy(id),
+        kind: "gif",
+      });
+    }
+
     await createPost({
       sessionId: you.sessionId,
       authorId: you.id,
-      body: String(formData.get("body") ?? ""),
-      imageUrl,
+      body,
       media,
       parentId: optional(formData.get("parentId")),
       groupId: optional(formData.get("groupId")),

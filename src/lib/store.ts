@@ -13,7 +13,7 @@ import {
 } from "./engine";
 import { remoteLoad, remoteSave, usesRemoteStore } from "./persist";
 import { nowIso, roomCode, uid } from "./ids";
-import { composeEnergyCost, type UploadMeta } from "./media-cost";
+import { MAX_ATTACHMENTS, postEnergyCost } from "./media-cost";
 import type {
   AlgorithmWeights,
   Classification,
@@ -21,6 +21,7 @@ import type {
   Group,
   Participant,
   Post,
+  PostMedia,
   ProposalEffect,
   RoundNumber,
   Session,
@@ -216,8 +217,7 @@ export async function createPost(input: {
   sessionId: string;
   authorId: string;
   body: string;
-  imageUrl?: string | null;
-  media?: UploadMeta | null;
+  media?: PostMedia[];
   parentId?: string | null;
   groupId?: string | null;
   isBroadcast?: boolean;
@@ -231,20 +231,23 @@ export async function createPost(input: {
     }
 
     const body = input.body.trim().slice(0, 280);
-    const imageUrl = input.imageUrl ?? null;
-    if (!body && !imageUrl) throw new Error("Write something first.");
+    const media = (input.media ?? []).slice(0, MAX_ATTACHMENTS);
+    const imageUrl = media[0]?.url ?? null;
+    if (!body && media.length === 0) {
+      throw new Error("Add text, a photo, or a GIF.");
+    }
 
     const isReply = Boolean(input.parentId);
-    const cost = composeEnergyCost(
-      session.costs.post,
-      session.costs.reply,
+    const cost = postEnergyCost({
+      hasText: Boolean(body),
+      photos: media.filter((item) => item.kind === "photo").length,
+      gifs: media.filter((item) => item.kind === "gif").length,
       isReply,
-      input.media,
-    );
+    });
     if (author.energy < cost) {
       throw new Error(
-        cost > (isReply ? session.costs.reply : session.costs.post)
-          ? `Not enough Energy. That upload costs ${cost} Energy.`
+        cost > 0
+          ? `Not enough Energy. That post costs ${cost} Energy.`
           : "Not enough Energy.",
       );
     }
@@ -273,6 +276,7 @@ export async function createPost(input: {
       groupId: input.groupId ?? null,
       body,
       imageUrl,
+      media,
       likedBy: [],
       viewsDisplay: 1,
       visibilityScore: 0,
@@ -385,6 +389,7 @@ export async function studentBroadcast(
       groupId: null,
       body: text,
       imageUrl: null,
+      media: [],
       likedBy: [],
       viewsDisplay: 1,
       visibilityScore: 0,

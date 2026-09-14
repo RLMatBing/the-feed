@@ -82,6 +82,7 @@ export type Post = {
   groupId: string | null;
   body: string;
   imageUrl: string | null;
+  media: PostMedia[];
   likedBy: string[];
   viewsDisplay: number;
   visibilityScore: number;
@@ -94,6 +95,13 @@ export type Post = {
   mentionedIds: string[];
   isBroadcast: boolean;
   createdAt: string;
+};
+
+export type MediaKind = "photo" | "gif";
+
+export type PostMedia = {
+  url: string;
+  kind: MediaKind;
 };
 
 export type Group = {

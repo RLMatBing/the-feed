@@ -13,8 +13,16 @@ import {
 } from "@/app/actions/student";
 import { PostImage } from "@/components/PostImage";
 import { GifPicker } from "@/components/student/GifPicker";
-import { compact, formatBytes, formatDollars, timeAgo } from "@/lib/format";
-import { composeEnergyCost, isGifUpload } from "@/lib/media-cost";
+import { compact, formatDollars, timeAgo } from "@/lib/format";
+import {
+  energyBreakdown,
+  GIF_ENERGY,
+  kindFromFile,
+  MAX_ATTACHMENTS,
+  PHOTO_ENERGY,
+  postEnergyCost,
+  TEXT_ENERGY,
+} from "@/lib/media-cost";
 import { useLiveState } from "@/lib/use-live";
 import type { Post, ProposalEffect, StudentSnapshot } from "@/lib/types";
 import { PROPOSAL_EFFECTS } from "@/lib/types";
@@ -407,68 +415,83 @@ function Composer({
   onDone?: () => void;
 }) {
   const [body, setBody] = useState("");
-  const [image, setImage] = useState<File | null>(null);
-  const [preview, setPreview] = useState<string | null>(null);
-  const [giphy, setGiphy] = useState<{
-    id: string;
-    preview: string;
-    size: number;
-  } | null>(null);
+  const [attachments, setAttachments] = useState<
+    Array<{
+      key: string;
+      kind: "photo" | "gif";
+      preview: string;
+      file?: File;
+      giphyId?: string;
+    }>
+  >([]);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pending, start] = useTransition();
   const you = state.you;
   const paused = state.session.status === "paused";
-  const media = image
-    ? { size: image.size, type: image.type, name: image.name }
-    : giphy
-      ? { size: giphy.size, type: "image/gif", name: "giphy.gif" }
-      : null;
-  const canPost = Boolean(body.trim() || media);
-  const energyCost = composeEnergyCost(
-    state.session.costs.post,
-    state.session.costs.reply,
-    Boolean(parentId),
-    media,
-  );
+  const isReply = Boolean(parentId);
+  const photos = attachments.filter((item) => item.kind === "photo").length;
+  const gifs = attachments.filter((item) => item.kind === "gif").length;
+  const hasText = Boolean(body.trim());
+  const canPost = hasText || attachments.length > 0;
+  const energyCost = postEnergyCost({ hasText, photos, gifs, isReply });
   const enoughEnergy = Boolean(you && you.energy >= energyCost);
-  const kind = media
-    ? isGifUpload(media)
-      ? "GIF"
-      : "Photo"
-    : parentId
-      ? "Reply"
-      : "Post";
-  const previewSrc = giphy?.preview ?? preview;
+  const roomLeft = MAX_ATTACHMENTS - attachments.length;
 
   useEffect(() => {
     return () => {
-      if (preview) URL.revokeObjectURL(preview);
+      for (const item of attachments) {
+        if (item.file) URL.revokeObjectURL(item.preview);
+      }
     };
-  }, [preview]);
+    // revoke only on unmount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  function clearMedia() {
-    if (preview) URL.revokeObjectURL(preview);
-    setImage(null);
-    setPreview(null);
-    setGiphy(null);
+  function addFiles(list: FileList | null) {
+    if (!list) return;
+    const next = [...attachments];
+    for (const file of Array.from(list)) {
+      if (next.length >= MAX_ATTACHMENTS) break;
+      next.push({
+        key: crypto.randomUUID(),
+        kind: kindFromFile(file),
+        preview: URL.createObjectURL(file),
+        file,
+      });
+    }
+    setAttachments(next);
   }
 
-  function chooseImage(file: File | undefined) {
-    if (preview) URL.revokeObjectURL(preview);
-    setGiphy(null);
-    setPickerOpen(false);
-    if (!file) {
-      setImage(null);
-      setPreview(null);
-      return;
-    }
-    setImage(file);
-    setPreview(URL.createObjectURL(file));
+  function addGif(gif: { id: string; preview: string }) {
+    if (attachments.length >= MAX_ATTACHMENTS) return;
+    if (attachments.some((item) => item.giphyId === gif.id)) return;
+    setAttachments((current) => [
+      ...current,
+      {
+        key: crypto.randomUUID(),
+        kind: "gif",
+        preview: gif.preview,
+        giphyId: gif.id,
+      },
+    ]);
+  }
+
+  function removeAttachment(key: string) {
+    setAttachments((current) => {
+      const target = current.find((item) => item.key === key);
+      if (target?.file) URL.revokeObjectURL(target.preview);
+      return current.filter((item) => item.key !== key);
+    });
   }
 
   function clearDraft() {
+    setAttachments((current) => {
+      for (const item of current) {
+        if (item.file) URL.revokeObjectURL(item.preview);
+      }
+      return [];
+    });
     setBody("");
-    clearMedia();
     setPickerOpen(false);
   }
 
@@ -479,8 +502,10 @@ function Composer({
       data.set("body", body);
       if (parentId) data.set("parentId", parentId);
       if (groupId) data.set("groupId", groupId);
-      if (image) data.set("image", image);
-      if (giphy) data.set("giphyId", giphy.id);
+      for (const item of attachments) {
+        if (item.file) data.append("images", item.file);
+        if (item.giphyId) data.append("giphyIds", item.giphyId);
+      }
       const result =
         kind === "broadcast"
           ? await actionBroadcast(body)
@@ -505,39 +530,40 @@ function Composer({
         disabled={paused}
         placeholder={
           parentId
-            ? "Reply…"
-            : groupId
-              ? "Post to this group…"
-              : "What's happening?"
+            ? "Reply with text, a photo, or a GIF…"
+            : "Text is optional if you add a photo or GIF"
         }
         className="w-full resize-none bg-transparent text-[15px] outline-none placeholder:text-feed-muted/70"
       />
-      {previewSrc && (
-        <div className="relative mt-2 overflow-hidden rounded-2xl">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={previewSrc} alt="" className="max-h-64 w-full object-cover" />
-          <button
-            type="button"
-            onClick={() => clearMedia()}
-            className="absolute right-2 top-2 rounded-full bg-black/70 p-1 text-white"
-            aria-label="Remove image"
-          >
-            <X size={14} />
-          </button>
+      {attachments.length > 0 && (
+        <div className="mt-2 grid grid-cols-3 gap-2">
+          {attachments.map((item) => (
+            <div key={item.key} className="relative overflow-hidden rounded-xl">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={item.preview}
+                alt=""
+                referrerPolicy="no-referrer"
+                className="h-24 w-full object-cover"
+              />
+              <span className="absolute left-1 top-1 rounded-full bg-black/70 px-1.5 py-0.5 text-[10px] uppercase">
+                {item.kind === "gif" ? `GIF ${GIF_ENERGY}` : `Photo ${PHOTO_ENERGY}`}
+              </span>
+              <button
+                type="button"
+                onClick={() => removeAttachment(item.key)}
+                className="absolute right-1 top-1 rounded-full bg-black/70 p-1 text-white"
+                aria-label="Remove"
+              >
+                <X size={12} />
+              </button>
+            </div>
+          ))}
         </div>
       )}
-      {pickerOpen && state.gifsEnabled && (
+      {pickerOpen && (
         <GifPicker
-          basePost={state.session.costs.post}
-          baseReply={state.session.costs.reply}
-          isReply={Boolean(parentId)}
-          onPick={(gif) => {
-            if (preview) URL.revokeObjectURL(preview);
-            setImage(null);
-            setPreview(null);
-            setGiphy({ id: gif.id, preview: gif.preview, size: gif.size });
-            setPickerOpen(false);
-          }}
+          onPick={addGif}
           onClose={() => setPickerOpen(false)}
         />
       )}
@@ -545,40 +571,45 @@ function Composer({
         Images and GIFs must be classroom-appropriate. Don’t post anything you
         wouldn’t show on a projector.
       </p>
+      <p className="mt-2 font-mono text-[12px] text-feed-gold">
+        {energyCost === 0
+          ? isReply
+            ? "Reply is free until you add a photo or GIF"
+            : `This post: 0 Energy · add text (${TEXT_ENERGY}), a photo (${PHOTO_ENERGY}), or a GIF (${GIF_ENERGY})`
+          : `This post: ${energyCost} Energy · ${energyBreakdown({
+              hasText,
+              photos,
+              gifs,
+              isReply,
+            })}`}
+        {you ? ` · you have ${you.energy}` : ""}
+      </p>
       <div className="mt-2 flex items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-3">
           <label className="inline-flex cursor-pointer items-center gap-1 text-[11px] text-feed-muted hover:text-feed-text">
             <ImageSquare size={16} />
-            Photo
+            Photos
             <input
               type="file"
               accept="image/jpeg,image/png,image/gif,image/webp"
+              multiple
               className="sr-only"
-              disabled={paused}
-              onChange={(e) => chooseImage(e.target.files?.[0])}
+              disabled={paused || roomLeft <= 0}
+              onChange={(e) => {
+                addFiles(e.target.files);
+                e.target.value = "";
+              }}
             />
           </label>
-          {state.gifsEnabled && (
-            <button
-              type="button"
-              disabled={paused}
-              onClick={() => setPickerOpen((open) => !open)}
-              className="inline-flex items-center gap-1 text-[11px] text-feed-muted hover:text-feed-text"
-            >
-              <Gif size={16} />
-              GIFs
-            </button>
-          )}
-          <p className="text-[11px] text-feed-muted">
-            {energyCost === 0
-              ? "Replies are free"
-              : media
-                ? `${kind} · ${formatBytes(media.size)} costs ${energyCost} Energy`
-                : `${kind} costs ${energyCost} Energy`}
-            {you && energyCost > 0 && !enoughEnergy
-              ? ` · you have ${you.energy}`
-              : ""}
-          </p>
+          <button
+            type="button"
+            disabled={paused || roomLeft <= 0}
+            onClick={() => setPickerOpen((open) => !open)}
+            className="inline-flex items-center gap-1 text-[11px] text-feed-muted hover:text-feed-text"
+          >
+            <Gif size={16} />
+            GIFs
+          </button>
         </div>
         <div className="flex gap-2">
           {showBroadcast && !parentId && (
@@ -654,7 +685,7 @@ function PostCard({
           {post.body}
         </p>
       ) : null}
-      <PostImage url={post.imageUrl} />
+      <PostImage url={post.imageUrl} media={post.media} />
       <div className="mt-3 flex flex-wrap items-center gap-4 text-xs text-feed-muted">
         <button
           type="button"
@@ -740,7 +771,7 @@ function PostCard({
               </span>
             </p>
             {reply.body ? <p className="mt-1 text-sm">{reply.body}</p> : null}
-            <PostImage url={reply.imageUrl} />
+            <PostImage url={reply.imageUrl} media={reply.media} />
             <button
               type="button"
               className={`mt-1 inline-flex items-center gap-1 text-[11px] ${
@@ -1115,6 +1146,14 @@ function labelWeight(key: string): string {
 }
 
 function previewText(post: Post, max: number): string {
-  const text = post.body.trim() || (post.imageUrl ? "Photo" : "");
-  return text.length > max ? `${text.slice(0, max)}…` : text;
+  if (post.body.trim()) {
+    const text = post.body.trim();
+    return text.length > max ? `${text.slice(0, max)}…` : text;
+  }
+  const photos = post.media?.filter((item) => item.kind === "photo").length ?? 0;
+  const gifs = post.media?.filter((item) => item.kind === "gif").length ?? 0;
+  if (photos && gifs) return `${photos} photos · ${gifs} GIFs`;
+  if (gifs) return gifs === 1 ? "GIF" : `${gifs} GIFs`;
+  if (photos) return photos === 1 ? "Photo" : `${photos} photos`;
+  return post.imageUrl ? "Photo" : "";
 }

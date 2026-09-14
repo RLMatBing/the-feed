@@ -263,7 +263,7 @@ function Queue({
             </span>
           </div>
           {post.body ? <p className="mt-2 text-sm">{post.body}</p> : null}
-          <PostImage url={post.imageUrl} />
+          <PostImage url={post.imageUrl} media={post.media} />
           <div className="mt-2 flex flex-wrap gap-1">
             {CLASSIFICATIONS.map((tag) => (
               <button
