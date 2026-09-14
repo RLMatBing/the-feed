@@ -29,7 +29,7 @@ import type {
   InstructorSnapshot,
   Post,
 } from "@/lib/types";
-import { CLASSIFICATIONS } from "@/lib/types";
+import { CLASSIFICATIONS, proposalEffectLabel } from "@/lib/types";
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
 
@@ -615,7 +615,7 @@ function System({
             return (
               <div key={proposal.id} className="border border-ops-line p-3">
                 <p className="font-mono text-[10px] uppercase text-ops-muted">
-                  {proposal.status} · yes {yes} · no {no} · need {proposal.threshold}
+                  {proposal.status} · {proposalEffectLabel(proposal.effect)} · yes {yes} · no {no} · need {proposal.threshold}
                 </p>
                 <p className="mt-1 text-sm">{proposal.title}</p>
                 <p className="text-xs text-ops-muted">{proposal.body}</p>

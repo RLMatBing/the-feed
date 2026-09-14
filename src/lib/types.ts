@@ -219,9 +219,14 @@ export const CLASSIFICATIONS: Classification[] = [
 ];
 
 export const PROPOSAL_EFFECTS: { id: ProposalEffect; label: string }[] = [
-  { id: "theatrical", label: "Symbolic only (no system change)" },
   { id: "remove_leaderboard", label: "Hide the rank leaderboard" },
   { id: "hide_influence", label: "Hide Influence scores" },
   { id: "double_energy", label: "Double Energy per round" },
   { id: "equalize_energy", label: "Refill everyone's Energy" },
 ];
+
+export function proposalEffectLabel(effect: ProposalEffect): string {
+  return (
+    PROPOSAL_EFFECTS.find((item) => item.id === effect)?.label ?? "Custom"
+  );
+}

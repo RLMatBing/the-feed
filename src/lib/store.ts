@@ -27,6 +27,7 @@ import type {
   Session,
   Vote,
 } from "./types";
+import { PROPOSAL_EFFECTS } from "./types";
 
 const DATA_DIR = process.env.VERCEL
   ? join("/tmp", "the-feed")
@@ -498,6 +499,9 @@ export async function createProposal(input: {
     const title = input.title.trim().slice(0, 80);
     const body = input.body.trim().slice(0, 280);
     if (!title) throw new Error("Write a proposal.");
+    if (!PROPOSAL_EFFECTS.some((item) => item.id === input.effect)) {
+      throw new Error("Pick what this proposal would change.");
+    }
     const voters = activePeople(db, session.id).length;
     const proposal = {
       id: uid(),

@@ -25,7 +25,7 @@ import {
 } from "@/lib/media-cost";
 import { useLiveState } from "@/lib/use-live";
 import type { Post, ProposalEffect, StudentSnapshot } from "@/lib/types";
-import { PROPOSAL_EFFECTS } from "@/lib/types";
+import { PROPOSAL_EFFECTS, proposalEffectLabel } from "@/lib/types";
 import {
   Broadcast,
   ChatCircle,
@@ -46,7 +46,7 @@ import { useEffect, useMemo, useState, useTransition } from "react";
 
 type ActionResult = { error?: string; state?: StudentSnapshot };
 
-type Tab = "feed" | "groups" | "rules";
+type Tab = "feed" | "groups" | "governance";
 
 export function StudentApp({ initial }: { initial: StudentSnapshot }) {
   const { state, refresh, replace } = useLiveState(
@@ -109,7 +109,7 @@ export function StudentApp({ initial }: { initial: StudentSnapshot }) {
                 [
                   ["feed", "Feed"],
                   ["groups", "Groups"],
-                  ["rules", "Rules"],
+                  ["governance", "Governance"],
                 ] as const
               ).map(([id, label]) => (
                 <button
@@ -128,10 +128,21 @@ export function StudentApp({ initial }: { initial: StudentSnapshot }) {
             </div>
           )}
           {tab === "feed" && (
-            <Feed state={state} apply={apply} late={late} />
+            <>
+              {late && (
+                <button
+                  type="button"
+                  onClick={() => setTab("governance")}
+                  className="w-full border-b border-white/10 px-4 py-2.5 text-left text-[13px] text-feed-muted hover:text-white"
+                >
+                  Platform governance is open. Propose a change to the room.
+                </button>
+              )}
+              <Feed state={state} apply={apply} late={late} />
+            </>
           )}
           {tab === "groups" && <Groups state={state} apply={apply} />}
-          {tab === "rules" && <Rules state={state} apply={apply} />}
+          {tab === "governance" && <Rules state={state} apply={apply} />}
         </main>
         <RightRail state={state} />
       </div>
@@ -247,7 +258,7 @@ function SideNav({
             [
               ["feed", "Feed", House],
               ["groups", "Groups", UsersThree],
-              ["rules", "Rules", Scales],
+              ["governance", "Governance", Scales],
             ] as const
           ).map(([id, label, Icon]) => (
             <button
@@ -921,7 +932,7 @@ function Rules({
 }) {
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
-  const [effect, setEffect] = useState<ProposalEffect>("theatrical");
+  const [effect, setEffect] = useState<ProposalEffect>("remove_leaderboard");
   const [pending, start] = useTransition();
   const voters = state.participants.filter((p) => !p.kickedAt).length;
 
@@ -929,8 +940,9 @@ function Rules({
     <div className="px-4 py-4">
       <h2 className="text-sm font-semibold tracking-wide">Platform governance</h2>
       <p className="mt-1 text-xs text-feed-muted">
-        Write a proposal. Votes require about two-thirds of the room. The
-        operator still has to apply it.
+        This tab appears when the operator opens governance or the room hits
+        round 4. Votes need about two-thirds of the room. The operator still
+        has to apply it.
       </p>
       <form
         className="mt-4 space-y-3"
@@ -989,7 +1001,8 @@ function Rules({
           return (
             <div key={proposal.id} className="border-t border-white/10 pt-4">
               <p className="text-[11px] uppercase tracking-wider text-feed-muted">
-                {proposal.status} · {proposal.threshold}/{voters} required
+                {proposal.status} · {proposalEffectLabel(proposal.effect)} ·{" "}
+                {proposal.threshold}/{voters} required
               </p>
               <p className="mt-1 font-semibold">{proposal.title}</p>
               {proposal.body && (
