@@ -21,6 +21,7 @@ import {
   actionTogglePause,
   actionVeto,
 } from "@/app/actions/instructor";
+import { PostImage } from "@/components/PostImage";
 import { formatDollars, timeAgo } from "@/lib/format";
 import { useLiveState } from "@/lib/use-live";
 import type {
@@ -33,7 +34,7 @@ import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
 
 export function ConsoleApp({ initial }: { initial: InstructorSnapshot }) {
-  const state = useLiveState(initial.session.id, "admin", initial);
+  const { state } = useLiveState(initial.session.id, "admin", initial);
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [roomPending, startRoom] = useTransition();
@@ -261,7 +262,8 @@ function Queue({
               {state.posts.filter((p) => p.parentId === post.id).length} replies
             </span>
           </div>
-          <p className="mt-2 text-sm">{post.body}</p>
+          {post.body ? <p className="mt-2 text-sm">{post.body}</p> : null}
+          <PostImage url={post.imageUrl} />
           <div className="mt-2 flex flex-wrap gap-1">
             {CLASSIFICATIONS.map((tag) => (
               <button

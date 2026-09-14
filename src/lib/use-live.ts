@@ -1,13 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 export function useLiveState<T>(
   sessionId: string,
   role: "student" | "admin",
   initial: T,
-): T {
+): { state: T; refresh: () => Promise<void>; replace: (next: T) => void } {
   const [state, setState] = useState(initial);
+  const pullRef = useRef<() => Promise<void>>(async () => {});
 
   useEffect(() => {
     let cancelled = false;
@@ -26,6 +27,8 @@ export function useLiveState<T>(
       }
     }
 
+    pullRef.current = pull;
+
     const source = new EventSource(
       `/api/stream?sessionId=${encodeURIComponent(sessionId)}&role=${role}`,
     );
@@ -40,7 +43,7 @@ export function useLiveState<T>(
     void pull();
     const poll = setInterval(() => {
       void pull();
-    }, 1200);
+    }, 800);
 
     return () => {
       cancelled = true;
@@ -49,5 +52,9 @@ export function useLiveState<T>(
     };
   }, [sessionId, role]);
 
-  return state;
+  const refresh = useCallback(async () => {
+    await pullRef.current();
+  }, []);
+
+  return { state, refresh, replace: setState };
 }

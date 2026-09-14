@@ -11,6 +11,7 @@ import type {
 function sessionPosts(db: Database, sessionId: string): Post[] {
   return Object.values(db.posts)
     .filter((p) => p.sessionId === sessionId)
+    .map((p) => ({ ...p, imageUrl: p.imageUrl ?? null }))
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 

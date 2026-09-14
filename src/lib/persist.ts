@@ -9,7 +9,7 @@ export function usesRemoteStore(): boolean {
   );
 }
 
-function client(): SupabaseClient | null {
+export function supabaseClient(): SupabaseClient | null {
   const url = process.env.SUPABASE_URL;
   const key = process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_KEY;
   if (!url || !key) return null;
@@ -26,7 +26,7 @@ function asDatabase(raw: unknown): Database {
 }
 
 export async function remoteLoad(): Promise<{ db: Database; version: number }> {
-  const sb = client();
+  const sb = supabaseClient();
   if (!sb) return { db: emptyDatabase(), version: 0 };
   const { data, error } = await sb
     .from("game_state")
@@ -39,7 +39,7 @@ export async function remoteLoad(): Promise<{ db: Database; version: number }> {
 }
 
 export async function remoteSave(db: Database, version: number): Promise<boolean> {
-  const sb = client();
+  const sb = supabaseClient();
   if (!sb) return true;
   const { data, error } = await sb
     .from("game_state")

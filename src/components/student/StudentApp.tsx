@@ -11,6 +11,7 @@ import {
   actionPropose,
   actionVote,
 } from "@/app/actions/student";
+import { PostImage } from "@/components/PostImage";
 import { compact, formatDollars, timeAgo } from "@/lib/format";
 import { useLiveState } from "@/lib/use-live";
 import type { Post, ProposalEffect, StudentSnapshot } from "@/lib/types";
@@ -22,20 +23,34 @@ import {
   FireSimple,
   Heart,
   House,
+  ImageSquare,
   PushPin,
   Lightning,
   Scales,
   UsersThree,
   TrendUp,
+  X,
 } from "@phosphor-icons/react";
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
+
+type ActionResult = { error?: string; state?: StudentSnapshot };
 
 type Tab = "feed" | "groups" | "rules";
 
 export function StudentApp({ initial }: { initial: StudentSnapshot }) {
-  const state = useLiveState(initial.session.id, "student", initial);
+  const { state, refresh, replace } = useLiveState(
+    initial.session.id,
+    "student",
+    initial,
+  );
   const [tab, setTab] = useState<Tab>("feed");
   const [error, setError] = useState<string | null>(null);
+
+  function apply(result: ActionResult) {
+    if (result.error) setError(result.error);
+    else if (result.state) replace(result.state);
+    else void refresh();
+  }
   const late =
     state.session.currentRound >= 4 || state.session.flags.governanceOpen;
 
@@ -102,10 +117,10 @@ export function StudentApp({ initial }: { initial: StudentSnapshot }) {
             </div>
           )}
           {tab === "feed" && (
-            <Feed state={state} onError={setError} late={late} />
+            <Feed state={state} apply={apply} late={late} />
           )}
-          {tab === "groups" && <Groups state={state} onError={setError} />}
-          {tab === "rules" && <Rules state={state} onError={setError} />}
+          {tab === "groups" && <Groups state={state} apply={apply} />}
+          {tab === "rules" && <Rules state={state} apply={apply} />}
         </main>
         <RightRail state={state} />
       </div>
@@ -281,8 +296,7 @@ function RightRail({ state }: { state: StudentSnapshot }) {
           <div className="mt-3 space-y-3">
             {trending.map((post) => (
               <p key={post.id} className="text-sm leading-snug text-feed-muted">
-                {post.body.slice(0, 90)}
-                {post.body.length > 90 ? "…" : ""}
+                {previewText(post, 90)}
               </p>
             ))}
           </div>
@@ -294,11 +308,11 @@ function RightRail({ state }: { state: StudentSnapshot }) {
 
 function Feed({
   state,
-  onError,
+  apply,
   late,
 }: {
   state: StudentSnapshot;
-  onError: (msg: string) => void;
+  apply: (result: ActionResult) => void;
   late: boolean;
 }) {
   const roots = useMemo(
@@ -311,7 +325,7 @@ function Feed({
     <div>
       <Composer
         state={state}
-        onError={onError}
+        apply={apply}
         showBroadcast={late}
       />
       {!state.session.flags.hideLeaderboard && (
@@ -329,8 +343,7 @@ function Feed({
               key={post.id}
               className="shrink-0 rounded-full bg-white/5 px-3 py-1 text-xs text-feed-muted"
             >
-              {post.body.slice(0, 36)}
-              {post.body.length > 36 ? "…" : ""}
+              {previewText(post, 36)}
             </span>
           ))}
         </div>
@@ -346,7 +359,7 @@ function Feed({
               key={post.id}
               post={post}
               state={state}
-              onError={onError}
+              apply={apply}
             />
           ))
         )}
@@ -377,34 +390,64 @@ function RankStrip({ state }: { state: StudentSnapshot }) {
 
 function Composer({
   state,
-  onError,
+  apply,
   showBroadcast,
   parentId,
   groupId,
   onDone,
 }: {
   state: StudentSnapshot;
-  onError: (msg: string) => void;
+  apply: (result: ActionResult) => void;
   showBroadcast?: boolean;
   parentId?: string;
   groupId?: string | null;
   onDone?: () => void;
 }) {
   const [body, setBody] = useState("");
+  const [image, setImage] = useState<File | null>(null);
+  const [preview, setPreview] = useState<string | null>(null);
   const [pending, start] = useTransition();
   const you = state.you;
   const paused = state.session.status === "paused";
+  const canPost = Boolean(body.trim() || image);
+
+  useEffect(() => {
+    return () => {
+      if (preview) URL.revokeObjectURL(preview);
+    };
+  }, [preview]);
+
+  function chooseImage(file: File | undefined) {
+    if (preview) URL.revokeObjectURL(preview);
+    if (!file) {
+      setImage(null);
+      setPreview(null);
+      return;
+    }
+    setImage(file);
+    setPreview(URL.createObjectURL(file));
+  }
+
+  function clearDraft() {
+    setBody("");
+    chooseImage(undefined);
+  }
 
   function submit(kind: "post" | "broadcast") {
     if (!you) return;
     start(async () => {
+      const data = new FormData();
+      data.set("body", body);
+      if (parentId) data.set("parentId", parentId);
+      if (groupId) data.set("groupId", groupId);
+      if (image) data.set("image", image);
       const result =
         kind === "broadcast"
           ? await actionBroadcast(body)
-          : await actionCreatePost(toForm({ body, parentId, groupId }));
-      if (result.error) onError(result.error);
-      else {
-        setBody("");
+          : await actionCreatePost(data);
+      apply(result);
+      if (!result.error) {
+        clearDraft();
         onDone?.();
       }
     });
@@ -429,12 +472,43 @@ function Composer({
         }
         className="w-full resize-none bg-transparent text-[15px] outline-none placeholder:text-feed-muted/70"
       />
-      <div className="mt-2 flex items-center justify-between">
-        <p className="text-[11px] text-feed-muted">
-          {parentId
-            ? "Replies are free"
-            : `Post costs ${state.session.costs.post} Energy`}
-        </p>
+      {preview && (
+        <div className="relative mt-2 overflow-hidden rounded-2xl">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={preview} alt="" className="max-h-64 w-full object-cover" />
+          <button
+            type="button"
+            onClick={() => chooseImage(undefined)}
+            className="absolute right-2 top-2 rounded-full bg-black/70 p-1 text-white"
+            aria-label="Remove image"
+          >
+            <X size={14} />
+          </button>
+        </div>
+      )}
+      <p className="mt-2 text-[11px] leading-snug text-feed-muted">
+        Images must be classroom-appropriate. Don’t upload anything you
+        wouldn’t show on a projector.
+      </p>
+      <div className="mt-2 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <label className="inline-flex cursor-pointer items-center gap-1 text-[11px] text-feed-muted hover:text-feed-text">
+            <ImageSquare size={16} />
+            Photo
+            <input
+              type="file"
+              accept="image/jpeg,image/png,image/gif,image/webp"
+              className="sr-only"
+              disabled={paused}
+              onChange={(e) => chooseImage(e.target.files?.[0])}
+            />
+          </label>
+          <p className="text-[11px] text-feed-muted">
+            {parentId
+              ? "Replies are free"
+              : `Post costs ${state.session.costs.post} Energy`}
+          </p>
+        </div>
         <div className="flex gap-2">
           {showBroadcast && !parentId && (
             <button
@@ -448,7 +522,7 @@ function Composer({
           )}
           <button
             type="button"
-            disabled={pending || paused || !body.trim()}
+            disabled={pending || paused || !canPost}
             onClick={() => submit("post")}
             className="rounded-full bg-feed-accent px-4 py-1.5 text-xs font-semibold text-white active:scale-[0.98] disabled:opacity-40"
           >
@@ -463,11 +537,11 @@ function Composer({
 function PostCard({
   post,
   state,
-  onError,
+  apply,
 }: {
   post: Post;
   state: StudentSnapshot;
-  onError: (msg: string) => void;
+  apply: (result: ActionResult) => void;
 }) {
   const [replyOpen, setReplyOpen] = useState(false);
   const [pending, start] = useTransition();
@@ -504,17 +578,19 @@ function PostCard({
         </p>
         <p className="text-[11px] text-feed-muted">{timeAgo(post.createdAt)}</p>
       </div>
-      <p className="mt-2 whitespace-pre-wrap text-[15px] leading-relaxed">
-        {post.body}
-      </p>
+      {post.body ? (
+        <p className="mt-2 whitespace-pre-wrap text-[15px] leading-relaxed">
+          {post.body}
+        </p>
+      ) : null}
+      <PostImage url={post.imageUrl} />
       <div className="mt-3 flex flex-wrap items-center gap-4 text-xs text-feed-muted">
         <button
           type="button"
           disabled={pending || !you}
           onClick={() =>
             start(async () => {
-              const result = await actionLike(post.id);
-              if (result.error) onError(result.error);
+              apply(await actionLike(post.id));
             })
           }
           className={`inline-flex min-h-8 items-center gap-1.5 active:scale-[0.98] ${
@@ -553,8 +629,7 @@ function PostCard({
             disabled={pending}
             onClick={() =>
               start(async () => {
-                const result = await actionBoost(post.id);
-                if (result.error) onError(result.error);
+                apply(await actionBoost(post.id));
               })
             }
             className="inline-flex items-center gap-1 rounded-full bg-white/8 px-3 py-1 text-xs font-semibold"
@@ -568,8 +643,7 @@ function PostCard({
             disabled={pending}
             onClick={() =>
               start(async () => {
-                const result = await actionPin(post.id);
-                if (result.error) onError(result.error);
+                apply(await actionPin(post.id));
               })
             }
             className="inline-flex items-center gap-1 rounded-full bg-white/8 px-3 py-1 text-xs font-semibold"
@@ -594,7 +668,8 @@ function PostCard({
                 {timeAgo(reply.createdAt)}
               </span>
             </p>
-            <p className="mt-1 text-sm">{reply.body}</p>
+            {reply.body ? <p className="mt-1 text-sm">{reply.body}</p> : null}
+            <PostImage url={reply.imageUrl} />
             <button
               type="button"
               className={`mt-1 inline-flex items-center gap-1 text-[11px] ${
@@ -603,8 +678,7 @@ function PostCard({
               aria-label={replyLiked ? "Unlike" : "Like"}
               onClick={() =>
                 start(async () => {
-                  const result = await actionLike(reply.id);
-                  if (result.error) onError(result.error);
+                  apply(await actionLike(reply.id));
                 })
               }
             >
@@ -618,7 +692,7 @@ function PostCard({
         <div className="mt-3 rounded-xl bg-white/4">
           <Composer
             state={state}
-            onError={onError}
+            apply={apply}
             parentId={post.id}
             onDone={() => setReplyOpen(false)}
           />
@@ -630,10 +704,10 @@ function PostCard({
 
 function Groups({
   state,
-  onError,
+  apply,
 }: {
   state: StudentSnapshot;
-  onError: (msg: string) => void;
+  apply: (result: ActionResult) => void;
 }) {
   const [name, setName] = useState("");
   const [active, setActive] = useState<string | null>(
@@ -651,8 +725,8 @@ function Groups({
           e.preventDefault();
           start(async () => {
             const result = await actionCreateGroup(name);
-            if (result.error) onError(result.error);
-            else setName("");
+            apply(result);
+            if (!result.error) setName("");
           });
         }}
       >
@@ -695,8 +769,7 @@ function Groups({
                 type="button"
                 onClick={() =>
                   start(async () => {
-                    const result = await actionJoinGroup(group.id);
-                    if (result.error) onError(result.error);
+                    apply(await actionJoinGroup(group.id));
                   })
                 }
                 className="text-xs font-semibold text-feed-accent"
@@ -706,7 +779,7 @@ function Groups({
             )}
           </div>
           {member && (
-            <Composer state={state} onError={onError} groupId={group.id} />
+            <Composer state={state} apply={apply} groupId={group.id} />
           )}
           {state.posts
             .filter((p) => p.groupId === group.id && !p.parentId)
@@ -715,7 +788,7 @@ function Groups({
                 key={post.id}
                 post={post}
                 state={state}
-                onError={onError}
+                apply={apply}
               />
             ))}
         </div>
@@ -731,10 +804,10 @@ function Groups({
 
 function Rules({
   state,
-  onError,
+  apply,
 }: {
   state: StudentSnapshot;
-  onError: (msg: string) => void;
+  apply: (result: ActionResult) => void;
 }) {
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
@@ -755,8 +828,8 @@ function Rules({
           e.preventDefault();
           start(async () => {
             const result = await actionPropose({ title, body, effect });
-            if (result.error) onError(result.error);
-            else {
+            apply(result);
+            if (!result.error) {
               setTitle("");
               setBody("");
             }
@@ -821,8 +894,7 @@ function Rules({
                     type="button"
                     onClick={() =>
                       start(async () => {
-                        const result = await actionVote(proposal.id, "yes");
-                        if (result.error) onError(result.error);
+                        apply(await actionVote(proposal.id, "yes"));
                       })
                     }
                     className={`rounded-full px-3 py-1 text-xs font-semibold ${
@@ -835,8 +907,7 @@ function Rules({
                     type="button"
                     onClick={() =>
                       start(async () => {
-                        const result = await actionVote(proposal.id, "no");
-                        if (result.error) onError(result.error);
+                        apply(await actionVote(proposal.id, "no"));
                       })
                     }
                     className={`rounded-full px-3 py-1 text-xs font-semibold ${
@@ -972,10 +1043,7 @@ function labelWeight(key: string): string {
   return labels[key] ?? key;
 }
 
-function toForm(fields: Record<string, string | undefined | null>): FormData {
-  const data = new FormData();
-  for (const [key, value] of Object.entries(fields)) {
-    if (value) data.set(key, value);
-  }
-  return data;
+function previewText(post: Post, max: number): string {
+  const text = post.body.trim() || (post.imageUrl ? "Photo" : "");
+  return text.length > max ? `${text.slice(0, max)}…` : text;
 }

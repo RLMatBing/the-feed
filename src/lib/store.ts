@@ -215,6 +215,7 @@ export async function createPost(input: {
   sessionId: string;
   authorId: string;
   body: string;
+  imageUrl?: string | null;
   parentId?: string | null;
   groupId?: string | null;
   isBroadcast?: boolean;
@@ -228,7 +229,8 @@ export async function createPost(input: {
     }
 
     const body = input.body.trim().slice(0, 280);
-    if (!body) throw new Error("Write something first.");
+    const imageUrl = input.imageUrl ?? null;
+    if (!body && !imageUrl) throw new Error("Write something first.");
 
     const isReply = Boolean(input.parentId);
     const cost = isReply ? session.costs.reply : session.costs.post;
@@ -257,6 +259,7 @@ export async function createPost(input: {
       parentId: input.parentId ?? null,
       groupId: input.groupId ?? null,
       body,
+      imageUrl,
       likedBy: [],
       viewsDisplay: 1,
       visibilityScore: 0,
@@ -368,6 +371,7 @@ export async function studentBroadcast(
       parentId: null,
       groupId: null,
       body: text,
+      imageUrl: null,
       likedBy: [],
       viewsDisplay: 1,
       visibilityScore: 0,

@@ -81,6 +81,7 @@ export type Post = {
   parentId: string | null;
   groupId: string | null;
   body: string;
+  imageUrl: string | null;
   likedBy: string[];
   viewsDisplay: number;
   visibilityScore: number;

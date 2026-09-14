@@ -4,6 +4,7 @@ import {
   readParticipantCookies,
   setParticipantCookies,
 } from "@/lib/auth";
+import { storePostImage } from "@/lib/media";
 import { studentSnapshot } from "@/lib/snapshot";
 import {
   createGroup,
@@ -21,6 +22,8 @@ import {
 } from "@/lib/store";
 import type { ProposalEffect, StudentSnapshot, Vote } from "@/lib/types";
 
+type StudentResult = { error?: string; state?: StudentSnapshot };
+
 async function actor() {
   const { sessionId, token } = await readParticipantCookies();
   if (!sessionId || !token) throw new Error("Join a room first.");
@@ -30,6 +33,11 @@ async function actor() {
   }
   if (participant.kickedAt) throw new Error("You were removed from this room.");
   return participant;
+}
+
+async function snapshotOf(sessionId: string, token: string): Promise<StudentSnapshot> {
+  const you = await getParticipantByToken(token);
+  return studentSnapshot(sessionId, you);
 }
 
 export async function actionJoin(
@@ -45,77 +53,83 @@ export async function actionJoin(
   }
 }
 
-export async function actionCreatePost(formData: FormData): Promise<{ error?: string }> {
+export async function actionCreatePost(formData: FormData): Promise<StudentResult> {
   try {
     const you = await actor();
+    const image = formData.get("image");
+    const imageUrl =
+      image instanceof File && image.size > 0
+        ? await storePostImage(image)
+        : null;
     await createPost({
       sessionId: you.sessionId,
       authorId: you.id,
       body: String(formData.get("body") ?? ""),
+      imageUrl,
       parentId: optional(formData.get("parentId")),
       groupId: optional(formData.get("groupId")),
     });
-    return {};
+    return { state: await snapshotOf(you.sessionId, you.token) };
   } catch (error) {
     return { error: error instanceof Error ? error.message : "Could not post." };
   }
 }
 
-export async function actionLike(postId: string): Promise<{ error?: string }> {
+export async function actionLike(postId: string): Promise<StudentResult> {
   try {
     const you = await actor();
     await toggleLike(you.sessionId, you.id, postId);
-    return {};
+    return { state: await snapshotOf(you.sessionId, you.token) };
   } catch (error) {
     return { error: error instanceof Error ? error.message : "Could not like." };
   }
 }
 
-export async function actionBoost(postId: string): Promise<{ error?: string }> {
+export async function actionBoost(postId: string): Promise<StudentResult> {
   try {
     const you = await actor();
     await boostPost(you.sessionId, you.id, postId);
-    return {};
+    return { state: await snapshotOf(you.sessionId, you.token) };
   } catch (error) {
     return { error: error instanceof Error ? error.message : "Could not boost." };
   }
 }
 
-export async function actionPin(postId: string): Promise<{ error?: string }> {
+export async function actionPin(postId: string): Promise<StudentResult> {
   try {
     const you = await actor();
     await pinPost(you.sessionId, you.id, postId);
-    return {};
+    return { state: await snapshotOf(you.sessionId, you.token) };
   } catch (error) {
     return { error: error instanceof Error ? error.message : "Could not pin." };
   }
 }
 
-export async function actionBroadcast(body: string): Promise<{ error?: string }> {
+export async function actionBroadcast(body: string): Promise<StudentResult> {
   try {
     const you = await actor();
     await studentBroadcast(you.sessionId, you.id, body);
-    return {};
+    return { state: await snapshotOf(you.sessionId, you.token) };
   } catch (error) {
     return { error: error instanceof Error ? error.message : "Could not broadcast." };
   }
 }
 
-export async function actionCreateGroup(name: string): Promise<{ error?: string }> {
+export async function actionCreateGroup(name: string): Promise<StudentResult> {
   try {
     const you = await actor();
     await createGroup(you.sessionId, you.id, name);
-    return {};
+    return { state: await snapshotOf(you.sessionId, you.token) };
   } catch (error) {
     return { error: error instanceof Error ? error.message : "Could not create group." };
   }
 }
 
-export async function actionJoinGroup(groupId: string): Promise<{ error?: string }> {
+export async function actionJoinGroup(groupId: string): Promise<StudentResult> {
   try {
     const you = await actor();
     await joinGroup(you.sessionId, you.id, groupId);
-    return {};
+    return { state: await snapshotOf(you.sessionId, you.token) };
   } catch (error) {
     return { error: error instanceof Error ? error.message : "Could not join." };
   }
@@ -125,7 +139,7 @@ export async function actionPropose(input: {
   title: string;
   body: string;
   effect: ProposalEffect;
-}): Promise<{ error?: string }> {
+}): Promise<StudentResult> {
   try {
     const you = await actor();
     await createProposal({
@@ -135,7 +149,7 @@ export async function actionPropose(input: {
       body: input.body,
       effect: input.effect,
     });
-    return {};
+    return { state: await snapshotOf(you.sessionId, you.token) };
   } catch (error) {
     return { error: error instanceof Error ? error.message : "Could not propose." };
   }
@@ -144,11 +158,11 @@ export async function actionPropose(input: {
 export async function actionVote(
   proposalId: string,
   vote: Vote,
-): Promise<{ error?: string }> {
+): Promise<StudentResult> {
   try {
     const you = await actor();
     await voteProposal(you.sessionId, you.id, proposalId, vote);
-    return {};
+    return { state: await snapshotOf(you.sessionId, you.token) };
   } catch (error) {
     return { error: error instanceof Error ? error.message : "Could not vote." };
   }
