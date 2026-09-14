@@ -37,9 +37,10 @@ function firstUrl(image: GiphyImage | undefined): string | null {
 function pickPreview(item: GiphyItem): string | null {
   const images = item.images ?? {};
   return (
-    firstUrl(images.preview_gif) ||
     firstUrl(images.fixed_height_small) ||
+    firstUrl(images.fixed_width_small) ||
     firstUrl(images.fixed_height) ||
+    firstUrl(images.preview_gif) ||
     firstUrl(images.downsized) ||
     firstUrl(images.original) ||
     null

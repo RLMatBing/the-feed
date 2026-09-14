@@ -474,6 +474,7 @@ function Composer({
         giphyId: gif.id,
       },
     ]);
+    setPickerOpen(false);
   }
 
   function removeAttachment(key: string) {
@@ -603,8 +604,13 @@ function Composer({
           </label>
           <button
             type="button"
-            disabled={paused || roomLeft <= 0}
+            disabled={paused || roomLeft <= 0 || state.gifsEnabled === false}
             onClick={() => setPickerOpen((open) => !open)}
+            title={
+              state.gifsEnabled
+                ? "Search GIPHY"
+                : "GIF search isn’t available in this room"
+            }
             className="inline-flex items-center gap-1 text-[11px] text-feed-muted hover:text-feed-text"
           >
             <Gif size={16} />
@@ -678,7 +684,9 @@ function PostCard({
             </span>
           )}
         </p>
-        <p className="text-[11px] text-feed-muted">{timeAgo(post.createdAt)}</p>
+        <p className="text-[11px] text-feed-muted" suppressHydrationWarning>
+          {timeAgo(post.createdAt)}
+        </p>
       </div>
       {post.body ? (
         <p className="mt-2 whitespace-pre-wrap text-[15px] leading-relaxed">
@@ -766,7 +774,7 @@ function PostCard({
           >
             <p className="text-xs font-semibold">
               @{who?.username ?? "unknown"}{" "}
-              <span className="font-normal text-feed-muted">
+              <span className="font-normal text-feed-muted" suppressHydrationWarning>
                 {timeAgo(reply.createdAt)}
               </span>
             </p>

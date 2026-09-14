@@ -254,7 +254,8 @@ function Queue({
         <article key={post.id} className="px-4 py-3">
           <div className="flex items-baseline justify-between gap-3 font-mono text-[11px] text-ops-muted">
             <span>
-              @{names.get(post.authorId) ?? "?"} · {timeAgo(post.createdAt)} ·
+              @{names.get(post.authorId) ?? "?"} ·{" "}
+              <span suppressHydrationWarning>{timeAgo(post.createdAt)}</span> ·
               vis {post.visibilityScore} · views {post.viewsDisplay}
             </span>
             <span>
@@ -705,7 +706,7 @@ function Debrief({ state }: { state: InstructorSnapshot }) {
         <ul className="mt-2 space-y-1 font-mono text-[11px] text-ops-muted">
           {state.events.map((event) => (
             <li key={event.id}>
-              {timeAgo(event.createdAt)} · {event.type}
+              <span suppressHydrationWarning>{timeAgo(event.createdAt)}</span> · {event.type}
             </li>
           ))}
         </ul>

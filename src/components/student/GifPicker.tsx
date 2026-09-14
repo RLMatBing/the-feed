@@ -22,12 +22,17 @@ export function GifPicker({
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    let cancelled = false;
+    const controller = new AbortController();
+    const q = query.trim();
+    setLoading(true);
+    setError(null);
+    if (q) setGifs([]);
+
     const handle = window.setTimeout(() => {
-      setLoading(true);
-      fetch(`/api/gifs?q=${encodeURIComponent(query.trim())}`, {
+      fetch(`/api/gifs?q=${encodeURIComponent(q)}`, {
         cache: "no-store",
-        credentials: "same-origin",
+        credentials: "include",
+        signal: controller.signal,
       })
         .then(async (response) => {
           const payload = (await response.json()) as {
@@ -37,21 +42,21 @@ export function GifPicker({
           if (!response.ok) {
             throw new Error(payload.error || "Could not search GIFs.");
           }
-          if (cancelled) return;
           setGifs(payload.gifs ?? []);
           setError(null);
         })
         .catch((err: unknown) => {
-          if (cancelled) return;
+          if (err instanceof DOMException && err.name === "AbortError") return;
           setGifs([]);
           setError(err instanceof Error ? err.message : "Could not search GIFs.");
         })
         .finally(() => {
-          if (!cancelled) setLoading(false);
+          if (!controller.signal.aborted) setLoading(false);
         });
-    }, query.trim() ? 250 : 0);
+    }, q ? 200 : 0);
+
     return () => {
-      cancelled = true;
+      controller.abort();
       window.clearTimeout(handle);
     };
   }, [query]);
@@ -62,7 +67,7 @@ export function GifPicker({
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search GIFs"
+          placeholder="Type a word — cat, sports, lecture…"
           className="flex-1 bg-transparent text-sm outline-none placeholder:text-feed-muted"
           autoFocus
         />
@@ -79,7 +84,7 @@ export function GifPicker({
         be classroom-appropriate.
       </p>
       {error && <p className="mt-2 text-[11px] text-feed-accent">{error}</p>}
-      <div className="mt-3 grid max-h-72 grid-cols-3 gap-2 overflow-y-auto">
+      <div className="relative mt-3 grid max-h-72 grid-cols-3 gap-2 overflow-y-auto">
         {loading && gifs.length === 0 ? (
           <p className="col-span-3 py-8 text-center text-xs text-feed-muted">
             Searching…

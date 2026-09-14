@@ -1,6 +1,6 @@
 import { readParticipantCookies } from "@/lib/auth";
 import { giphyConfigured, searchGiphy } from "@/lib/giphy";
-import { getParticipantByToken } from "@/lib/store";
+import { proxiedMediaUrl } from "@/lib/giphy-url";
 
 export const dynamic = "force-dynamic";
 
@@ -10,14 +10,16 @@ export async function GET(request: Request) {
   }
 
   const { sessionId, token } = await readParticipantCookies();
-  const you = token ? await getParticipantByToken(token) : null;
-  if (!sessionId || !you || you.sessionId !== sessionId || you.kickedAt) {
+  if (!sessionId || !token) {
     return Response.json({ error: "Join a room first." }, { status: 401 });
   }
 
   const q = new URL(request.url).searchParams.get("q") ?? "";
   try {
-    const gifs = await searchGiphy(q);
+    const gifs = (await searchGiphy(q)).map((gif) => ({
+      ...gif,
+      preview: proxiedMediaUrl(gif.preview),
+    }));
     return Response.json({ gifs });
   } catch (error) {
     return Response.json(
