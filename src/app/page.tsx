@@ -1,4 +1,3 @@
-import { InstructorLink } from "@/components/student/InstructorLink";
 import { JoinForm } from "@/components/student/JoinForm";
 
 export default function HomePage() {
@@ -14,9 +13,6 @@ export default function HomePage() {
         </p>
         <div className="mt-10">
           <JoinForm />
-        </div>
-        <div className="mt-10">
-          <InstructorLink />
         </div>
       </div>
     </main>

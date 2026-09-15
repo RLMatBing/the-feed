@@ -11,7 +11,7 @@ npm install
 npm run dev
 ```
 
-1. Open [http://localhost:3000](http://localhost:3000) and click **Instructor console**, or go to [http://localhost:3000/console](http://localhost:3000/console)
+1. Open [http://localhost:3000/console](http://localhost:3000/console)
 2. Password: `seminar` (change with `ADMIN_PASSWORD` in `.env.local`)
 3. Create a classroom session
 4. Put the 4-character room code on the board

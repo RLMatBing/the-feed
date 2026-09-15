@@ -1,5 +1,4 @@
 import { loadStudentState } from "@/app/actions/student";
-import { InstructorLink } from "@/components/student/InstructorLink";
 import { JoinForm } from "@/components/student/JoinForm";
 import { StudentApp } from "@/components/student/StudentApp";
 import { notFound } from "next/navigation";
@@ -62,9 +61,6 @@ export default async function SessionPage({
           <h1 className="mt-3 text-4xl font-semibold tracking-tight">Join</h1>
           <div className="mt-8">
             <JoinForm presetCode={state.session.code} />
-          </div>
-          <div className="mt-10">
-            <InstructorLink />
           </div>
         </div>
       </main>
